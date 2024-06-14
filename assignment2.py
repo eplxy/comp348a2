@@ -3,8 +3,10 @@ import reading
 import random
 
 data = reading.read_file("test.json")
-
-valid_ids = []
+stations = data.get("baseStations")
+area = round(((abs(data.get('max_lat') - data.get('min_lat')) + data.get('step')) / data.get('step')) * (
+        (abs(data.get('max_lon') - data.get('min_lon')) + data.get('step')) / data.get('step')))
+station_ids = []
 ant_count = 0
 ant_stats = {'min': 0, 'max': 0, 'avg': float(0)}
 point_stats = {'single_coverage': set(), 'multi_coverage': [], 'coverage_count': 0, 'total_points': 0,
@@ -13,7 +15,6 @@ point_stats = {'single_coverage': set(), 'multi_coverage': [], 'coverage_count':
 
 
 def main():
-    extract_data()
     while True:
         choice = show_main_menu()
         match choice:
@@ -67,45 +68,107 @@ def show_global_statistics():
     return
 
 
-def extract_data():
-    global data
-    data = reading.read_file("test.json")
-    generate_id_list()
-    count_global_antennas()
-    get_global_antenna_stats()
-    get_global_point_stats()
+def get_global_stats():
+    stats = {'a': int(), 'b': int(), 'c': (int(), int(), int()),
+             'd': int(), 'e': int(), 'f': int(), 'g': int(),
+             'h': float(), 'i': float(), 'j': int()
+             }
 
-    return
+    stats['a'] = len(data.get("baseStations"))
+    stats['b'] = get_global_ant_count()
+    ant_stats = get_global_antenna_stats()
+    stats['c'] = (ant_stats['max'], ant_stats['min'], ant_stats['avg'])
+
+
+    return stats
+
+
+def get_global_ant_count():
+    global data
+    return sum(len(station['ants']) for station in data.get("baseStations"))
+
+def get_global_coverage():
+    global data
+    for station in data.get('baseStations'):
+        for ()
+
+def get_station_stats(bs):
+    global area
+    ants = bs.get('ants')
+
+    stats = {'a': int(), 'b': int(), 'c': int(), 'd': int(),
+             'e': int(), 'f': float(), 'g': float(), 'h': int()
+             }
+
+    (single, multi) = get_station_coverage(bs)
+
+    stats['a'] = len(bs.get('ants'))
+    stats['b'] = len(single)
+    stats['c'] = len(set(multi))
+
+    stats['d'] = area - stats['b'] - stats['c']
+
+    multi_occurrences = occurrence_dict(multi)
+
+    stats['e'] = (
+        (0 if len(single) == 0 else 1) if len(
+            multi_occurrences) == 0 else max(
+            multi_occurrences.values())
+    )
+    stats['f'] = get_average_antenna_per_point(single, multi)
+    covered_point_count = stats['b'] + stats['c']
+    stats['g'] = round(100 * float(covered_point_count / float(area)), 2)
+    stats['h'] = get_greatest_coverage_antenna(bs)[1]
+
+    return stats
+
+
+def get_station_coverage(bs):
+    ants = bs.get('ants')
+    single_coverage_pts = []
+    multi_coverage_pts = []
+
+    for ant in ants:
+        for pt in ant.get('pts'):
+            current_pt = (pt[0], pt[1])
+            if current_pt in multi_coverage_pts:
+                multi_coverage_pts.append(current_pt)
+            else:
+                if current_pt in single_coverage_pts:
+                    single_coverage_pts.remove(current_pt)
+                    multi_coverage_pts.extend([current_pt, current_pt])  # twice to keep track of occurrences
+                else:
+                    single_coverage_pts.append(current_pt)
+    return single_coverage_pts, multi_coverage_pts
+
 
 
 def get_global_antenna_stats():
-    global ant_stats
+    ant_stats = {'min': 0, 'max': 0, 'avg': float(0)}
     ant_counts = [len(station['ants']) for station in data.get("baseStations")]
     ant_stats['min'] = min(ant_counts)
     ant_stats['max'] = max(ant_counts)
     ant_stats['avg'] = sum(ant_counts) / len(ant_counts)
+    return ant_stats
 
 
 def get_global_point_stats():
     generate_covered_points()
-    get_total_points()
-    get_average_antenna_per_point()
+    # get_total_points()
+    # get_average_antenna_per_point()
 
 
-def get_greatest_coverage_antenna():
+def get_greatest_coverage_antenna(bs):
     max_coverage = 0
-    s_id = None
+    s_id = bs.get('id')
     a_id = None
 
-    for station in data.get("baseStations"):
-        for ant in station.get("ants"):
-            coverage = len(ant.get("pts"))
-            if coverage > max_coverage:
-                max_coverage = coverage
-                s_id = station['id']
-                a_id = ant['id']
-
-    return "baseStation: " + str(s_id) + ", antenna: " + str(a_id)
+    for ant in bs.get("ants"):
+        coverage = len(ant.get("pts"))
+        if coverage > max_coverage:
+            max_coverage = coverage
+            a_id = ant['id']
+    return s_id, a_id
 
 
 def generate_covered_points():
@@ -153,21 +216,22 @@ def occurrence_dict(lst):
     return count_dict
 
 
-def get_average_antenna_per_point():  # i'm sorry about these names
-    temp_sum = len(point_stats['single_coverage'])
-    for occurrences in occurrence_dict(point_stats['multi_coverage']).values():
+def get_average_antenna_per_point(single, multi):  # i'm sorry about these names
+    temp_sum = len(single)
+    multi_occurrences = occurrence_dict(multi)
+    for occurrences in multi_occurrences.values():
         temp_sum += occurrences
-    point_stats['average_antenna_count'] = temp_sum / point_stats['coverage_count']
+    return temp_sum / (len(single) + len(set(multi)))
 
 
 def generate_id_list():
-    global valid_ids
-    valid_ids = [station['id'] for station in data.get("baseStations")]
+    global station_ids
+    station_ids = [station['id'] for station in data.get("baseStations")]
 
 
-def count_global_antennas():
-    global ant_count
-    ant_count = sum(len(station['ants']) for station in data.get("baseStations"))
+def get_global_antennas():
+    global data
+    return sum(len(station['ants']) for station in data.get("baseStations"))
 
 
 def option_station_statistics():
@@ -177,7 +241,7 @@ def option_station_statistics():
             print("Exiting to main menu.")
             break
         elif choice == "r":
-            show_station_statistics(random.choice(valid_ids))
+            show_station_statistics(random.choice(station_ids))
             break
         elif choice.isdecimal():
             choice = int(choice)
@@ -192,7 +256,16 @@ def option_station_statistics():
 
 
 def show_station_statistics(station):
-    return
+    stats = get_station_stats(station)
+    print("Statistics for station", station.get("id"))
+    print("Total number of antennas:", stats.get('a'))
+    print("Total number of points covered by exactly one antenna:", stats.get('b'))
+    print("Total number of points covered by multiple antennas:", stats.get('c'))
+    print("Total number of points not covered by any antenna:", stats.get('d'))
+    print("Maximum number of antennas covering a single point:", stats.get('e'))
+    print("Average number of antennas covering a single point:", stats.get('f'))
+    print("Percentage of area covered by the base station:", stats.get('g'), "%")
+    print("Antenna with greatest coverage: ID:", stats.get('h'))
 
 
 def show_station_menu():
