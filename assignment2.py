@@ -1,24 +1,38 @@
 import textwrap
 import random
 import json
+import math
+import sys
+
+FILE_PATH = "test.json"
+data = {}
+stations = {}
+area = int()
+station_ids = []
 
 
-def read_file(file_path):
+def read_file(file_path=FILE_PATH):
     file = open(file_path, "r")
     file_data = json.loads(file.read())
     return file_data
 
 
-FILE_PATH = "test.json"
+def load_data():
+    global data, stations, area, station_ids
+    if len(sys.argv) > 1:
+        data = read_file(sys.argv[1])
+    else:
+        data = read_file()
 
-data = read_file(FILE_PATH)
-stations = data.get("baseStations")
-area = round(((abs(data.get('max_lat') - data.get('min_lat')) + data.get('step')) / data.get('step')) * (
-        (abs(data.get('max_lon') - data.get('min_lon')) + data.get('step')) / data.get('step')))
-station_ids = [station['id'] for station in data.get("baseStations")]
+    stations = data.get("baseStations")
+    area = round(((abs(data.get('max_lat') - data.get('min_lat')) + data.get('step')) / data.get('step')) * (
+            (abs(data.get('max_lon') - data.get('min_lon')) + data.get('step')) / data.get('step')))
+    station_ids = [station['id'] for station in data.get("baseStations")]
 
 
 def main():
+    load_data()
+
     while True:
         choice = show_main_menu()
         if choice == "1":
@@ -26,7 +40,7 @@ def main():
         elif choice == "2":
             option_station_statistics()
         elif choice == "3":
-            print("Check Coverage")
+            option_check_coverage()
         elif choice == "4":
             print("Exiting")
             break
@@ -263,8 +277,94 @@ def show_station_menu():
 
 
 def option_check_coverage():
-    print("Check Coverage")
-    return
+    print("---------Check Coverage---------")
+    while True:
+        print("Enter the coordinates of the point you wish to check the coverage for.")
+
+        try:
+            lat = float(input("Enter latitude: "))
+            lon = float(input("Enter longitude: "))
+            covering_stations = check_coverage(lat, lon)
+            if not covering_stations:
+
+                print(f"The point at {lat}, {lon} is not covered by the provider.")
+                while True:
+                    print(textwrap.dedent("""
+                        Select an option:
+                        1. Locate the closest base station.
+                        2. Locate the closest covered point.
+                    """))
+                    choice = input("Choice: ")
+                    if choice == "1":
+                        closest_station = find_closest_station([lat, lon])
+                        print(f"The nearest base station (ID: {closest_station[3]}) is located at: "
+                              f"{closest_station[0]}, {closest_station[1]}.")
+                        print(f"Distance: {round(closest_station[2], 4)}")
+                        break
+                    elif choice == "2":
+                        closest_pt_info = find_closest_covered_points([lat, lon])
+                        print(
+                            f"The nearest covered point is at {closest_pt_info[0][2][0]}, {closest_pt_info[0][2][1]}.")
+                        print(f"The point is situated at a distance of {round(closest_pt_info[1], 4)}")
+                        print(f"It is covered by Base Station {closest_pt_info[0][0]}, Antenna {closest_pt_info[0][1]}")
+                        print(
+                            f"The station and antenna are situated at {closest_pt_info[0][3]}, {closest_pt_info[0][4]}")
+                        break
+                    else:
+                        print("Invalid option. Please try again.")
+            else:
+                print(f"The point at {lat}, {lon} is covered by the following antenna(s):")
+                for station in covering_stations:
+                    print(f"> Station {station[0]}")
+                    for ant in station[1]:
+                        print(f"    - Antenna {ant[0]} | Power: {ant[1]}")
+                break
+            break
+        except ValueError:
+            print("Please enter valid numbers.")
+
+
+def find_closest_covered_points(query_pt):
+    current_closest_distance = None
+    current_closest_pt_info = None
+    for station in data.get('baseStations'):
+        for ant in station.get('ants'):
+            for pt in ant.get('pts'):
+                dist = math.dist(query_pt, [float(pt[0]), float(pt[0])])
+                if (not current_closest_pt_info) or current_closest_distance > dist:
+                    current_closest_pt_info = [station.get('id'), ant.get('id'), pt, station.get('lat'),
+                                               station.get('lon')]
+                    current_closest_distance = dist
+
+    return [current_closest_pt_info, current_closest_distance]
+
+
+def find_closest_station(pt):
+    current_closest_distance = None
+    current_closest_station = None
+    for station in data.get('baseStations'):
+        dist = math.dist(pt, [float(station.get('lat')), float(station.get('lon'))])
+        if (not current_closest_station) or current_closest_distance > dist:
+            current_closest_station = station
+            current_closest_distance = dist
+
+    return [current_closest_station.get('lat'), current_closest_station.get('lon'), current_closest_distance,
+            current_closest_station.get('id')]
+
+
+def check_coverage(lat, lon):
+    covering_stations = []  # format: [(s_id, [(a_id, pow), ...]), ...]
+    for station in data.get('baseStations'):
+        s_id = station.get('id')
+        covering_antennas = []
+        for ant in station.get('ants'):
+            for pt in ant.get('pts'):
+                if pt[0] == lat and pt[1] == lon:
+                    covering_antennas.append((ant.get('id'), pt[2]))
+                    break
+        if covering_antennas:
+            covering_stations.append((s_id, covering_antennas))
+    return covering_stations
 
 
 if __name__ == "__main__":
