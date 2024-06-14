@@ -1,3 +1,8 @@
+# COMP 348 Assignment 2
+# Written by Duc Vinh Lam 40282959
+# Due date June 14th 2024
+# Submitted June 14th 2024
+
 import textwrap
 import random
 import json
